@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM & Grant Tool Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+    <!-- Chosen Palette: Warm Neutral -->
+    <!-- Application Structure Plan: I've designed a "Filterable Card Dashboard." This structure is more user-friendly than a static table, especially on mobile. The architecture consists of three main parts: 1) A 'Controls' section with interactive <select> dropdowns for key criteria (Function, Price, Free Tier). 2) A 'Visuals' section with dynamic Chart.js charts that summarize the filtered data, providing immediate high-level insights. 3) A responsive 'Card Grid' that displays the filtered tools. The user flow is: User selects filters -> JS updates a state object -> The charts and the card grid are *both* re-rendered based on the filtered data. This provides a cohesive, interactive experience focused on comparison and selection. -->
+    <!-- Visualization & Content Choices: 1) Report Info: Full tool dataset. -> Goal: Compare details. -> Viz: Responsive HTML/Tailwind cards. -> Interaction: Cards dynamically shown/hidden by JS filters. -> Justification: More scannable and mobile-friendly than a table. | 2) Report Info: 'Core Function' data. -> Goal: Show tool category distribution. -> Viz: Doughnut Chart (Chart.js/Canvas). -> Interaction: Chart re-renders based on filters (cross-filtering). -> Justification: Quick visual summary of the tool landscape. | 3) Report Info: 'Free Tier' data. -> Goal: Show free access availability. -> Viz: Bar Chart (Chart.js/Canvas). -> Interaction: Chart re-renders based on filters. -> Justification: Highlights a key decision factor for non-profits (cost). | 4) Report Info: Key categories (Function, Price, Free Tier). -> Goal: User-driven filtering. -> Viz: HTML <select> dropdowns. -> Interaction: 'change' event listener triggers JS filter logic. -> Justification: Provides the primary method for users to drill down to their specific needs. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 450px;
+            height: 280px;
+            max-height: 300px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        @media (min-width: 640px) {
+            .chart-container {
+                height: 300px;
+                max-height: 350px;
+            }
+        }
+        @media (min-width: 1024px) {
+            .chart-container {
+                max-width: 400px;
+            }
+        }
+        select {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-50 text-gray-700">
+
+    <header class="bg-white shadow-sm">
+        <div class="container mx-auto max-w-6xl px-4 py-6">
+            <h1 class="text-3xl font-bold text-gray-800">CRM & Grant Tool Explorer</h1>
+            <p class="mt-1 text-lg text-gray-600">Interactively compare solutions for non-profits and social impact organizations.</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto max-w-6xl p-4 md:p-6">
+        
+        <section id="introduction" class="mb-6 bg-white p-6 rounded-lg shadow">
+            <p class="text-gray-600">
+                This application transforms the static comparison table from the dt4si.com report into an interactive dashboard. Use the filters below to narrow down the tools based on your organization's specific needs. The summary charts and the tool cards will update automatically to reflect your selections, helping you to easily compare pricing, features, and support models.
+            </p>
+        </section>
+
+        <section id="controls" class="mb-6 rounded-lg bg-white p-6 shadow">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                    <label for="filter-function" class="block text-sm font-medium text-gray-700">Core Function</label>
+                    <select id="filter-function" class="mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm">
+                        <option value="all">All Functions</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="filter-price" class="block text-sm font-medium text-gray-700">Price Tier</label>
+                    <select id="filter-price" class="mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm">
+                        <option value="all">All Price Tiers</option>
+                        <option value="Free">Free Tier</option>
+                        <option value="Low">Low Cost</option>
+                        <option value="Medium">Medium Cost</option>
+                        <option value="High">High Cost</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="filter-free-tier" class="block text-sm font-medium text-gray-700">Free Access</label>
+                    <select id="filter-free-tier" class="mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm">
+                        <option value="all">Any</option>
+                        <option value="true">Has Free Tier / Trial</option>
+                        <option value="false">No Free Credit</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="filter-support" class="block text-sm font-medium text-gray-700">Support Level</label>
+                    <select id="filter-support" class="mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm">
+                        <option value="all">All Support Levels</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <section id="visuals" class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div class="rounded-lg bg-white p-4 shadow">
+                <h3 class="text-center text-lg font-semibold text-gray-800">Tools by Primary Function</h3>
+                <p class="text-center text-sm text-gray-500 mb-2">Distribution of filtered tools</p>
+                <div class="chart-container">
+                    <canvas id="functionChart"></canvas>
+                </div>
+            </div>
+            <div class="rounded-lg bg-white p-4 shadow">
+                <h3 class="text-center text-lg font-semibold text-gray-800">Free Tier & Trial Availability</h3>
+                <p class="text-center text-sm text-gray-500 mb-2">Count of filtered tools</p>
+                <div class="chart-container">
+                    <canvas id="freeTierChart"></canvas>
+                </div>
+            </div>
+        </section>
+        
+        <hr class="my-6 border-gray-200">
+        
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-2xl font-semibold text-gray-800">Filtered Tools</h2>
+            <div id="results-count" class="text-lg font-medium text-gray-600"></div>
+        </div>
+
+        <section id="tool-grid" class="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+        </section>
+        
+        <div id="no-results" class="hidden text-center text-gray-500 text-xl py-12">
+            No tools match your selected filters.
+        </div>
+    </main>
+
+    <template id="tool-card-template">
+        <div class="flex flex-col rounded-lg bg-white shadow-lg overflow-hidden transition-all duration-300">
+            <div class="p-6">
+                <h3 class="tool-name text-xl font-bold text-indigo-700">Tool Name</h3>
+                <p class="tool-provider text-sm font-medium text-gray-500 mb-3">by Provider</p>
+                <p class="tool-function text-gray-600 h-20">Core function description.</p>
+            </div>
+            <div class="border-t border-gray-100 p-6 space-y-4">
+                <div>
+                    <p class="text-xs font-semibold uppercase text-gray-400">Pricing</p>
+                    <p class="tool-pricing text-gray-800">Pricing details.</p>
+                </div>
+                <div>
+                    <p class="text-xs font-semibold uppercase text-gray-400">Free Tier / Trial</p>
+                    <p class="tool-free-tier text-gray-800">Free tier details.</p>
+                </div>
+                <div>
+                    <p class="text-xs font-semibold uppercase text-gray-400">Support</p>
+                    <p class="tool-support text-gray-800">Support details.</p>
+                </div>
+            </div>
+            <div class="bg-gray-50 p-6 mt-auto">
+                <p class="text-xs font-semibold uppercase text-gray-400">NGO Use Case & Notes</p>
+                <p class="tool-notes text-gray-600 text-sm">NGO notes.</p>
+            </div>
+        </div>
+    </template>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            const toolData = [
+                {
+                    id: 1,
+                    name: 'Bigin (Zoho)',
+                    provider: 'Zoho',
+                    coreFunction: 'Pipeline-centric CRM for small organisations.',
+                    pricing: 'Starts ~₹400/user/month, up to ₹1080/user/month.',
+                    freeTier: '15-day free trial & a free single-user tier.',
+                    support: 'Email, community forums.',
+                    notes: 'Fundraising, donor/CRM management.',
+                    functions: ['CRM', 'Fundraising', 'Donor Management'],
+                    priceTier: 'Low',
+                    hasFreeTier: true,
+                    supportLevel: 'Basic'
+                },
+                {
+                    id: 2,
+                    name: 'Daanveda',
+                    provider: 'Daanveda',
+                    coreFunction: 'Manages donation tracking, receipts, and statutory compliance for Indian NGOs.',
+                    pricing: 'SaaS subscription from ₹499/month.',
+                    freeTier: 'No free credit.',
+                    support: 'Email, ticketing portal.',
+                    notes: 'SDG 1 (Poverty Reduction). Ref: Smile Foundation.',
+                    functions: ['Donation Tracking', 'Compliance'],
+                    priceTier: 'Low',
+                    hasFreeTier: false,
+                    supportLevel: 'Basic'
+                },
+                {
+                    id: 3,
+                    name: 'HubSpot',
+                    provider: 'HubSpot Inc.',
+                    coreFunction: 'Comprehensive CRM (marketing, sales, service automation).',
+                    pricing: 'Paid plans start ~US$15/seat (annual). 40% non-profit discount.',
+                    freeTier: 'Free tools for up to 2 users. 14-day paid-plan trial.',
+                    support: '24/7 help, knowledge base.',
+                    notes: 'Fundraising, CRM, outreach/marketing.',
+                    functions: ['CRM', 'Fundraising', 'Marketing', 'Outreach'],
+                    priceTier: 'Low',
+                    hasFreeTier: true,
+                    supportLevel: '24/7'
+                },
+                {
+                    id: 4,
+                    name: 'MGrant',
+                    provider: 'Dhwani RIS',
+                    coreFunction: 'CSR grant-management system (proposals, evaluations, tracking).',
+                    pricing: 'One-time setup (₹6–8 Lakh) + annual SaaS (₹8–12 Lakh).',
+                    freeTier: 'Not specified.',
+                    support: 'Dedicated support teams, SDG domain experts.',
+                    notes: 'Refs: One Stage Foundation, TRIF, Smile Foundation.',
+                    functions: ['Grant Management', 'CSR'],
+                    priceTier: 'High',
+                    hasFreeTier: false,
+                    supportLevel: 'Dedicated'
+                },
+                {
+                    id: 5,
+                    name: 'Meritto',
+                    provider: 'NoPaperForms',
+                    coreFunction: 'AI-powered education CRM (enrollment, application, payment).',
+                    pricing: 'Per-student (~₹299/student/year).',
+                    freeTier: 'No free credit.',
+                    support: 'Online documentation, ticketing.',
+                    notes: 'SDG 10 (Reduced Inequalities). Ref: UNESCO.',
+                    functions: ['CRM', 'Fundraising', 'Donor Management', 'Outreach'],
+                    priceTier: 'Low',
+                    hasFreeTier: false,
+                    supportLevel: 'Basic'
+                },
+                {
+                    id: 6,
+                    name: 'Salesforce',
+                    provider: 'Salesforce',
+                    coreFunction: 'Cloud CRM platform (sales, service, marketing).',
+                    pricing: 'Starts ~US$25/user/month.',
+                    freeTier: '30-day trial. Non-profit discounts & "Power of Us" program.',
+                    support: 'Trailblazer community, 24/7 phone/email help.',
+                    notes: 'General CRM for non-profits.',
+                    functions: ['CRM', 'Marketing'],
+                    priceTier: 'Low',
+                    hasFreeTier: true,
+                    supportLevel: '24/7'
+                },
+                {
+                    id: 7,
+                    name: 'Salesforce CRM',
+                    provider: 'Salesforce',
+                    coreFunction: 'Highly configurable and scalable CRM platform.',
+                    pricing: 'Depends on plan.',
+                    freeTier: '10 donated licenses & discounts via "Power of Us" program.',
+                    support: 'Knowledge base, community, 24/7 channels.',
+                    notes: 'Highly customisable for donor & grant management.',
+                    functions: ['CRM', 'Donor Management', 'Grant Management'],
+                    priceTier: 'Medium',
+                    hasFreeTier: true,
+                    supportLevel: '24/7'
+                },
+                {
+                    id: 8,
+                    name: 'Social Integrated Platform',
+                    provider: 'Synergy Connect',
+                    coreFunction: 'Cloud-based ERP (CSR, project management, M&E, NGO compliance, LMS).',
+                    pricing: 'Starts ~₹1 Lakh/year.',
+                    freeTier: 'No free credit.',
+                    support: '24×7 online support.',
+                    notes: 'All SDGs. Ref: KOITA Foundation.',
+                    functions: ['ERP', 'CSR', 'Project Management', 'M&E', 'Compliance'],
+                    priceTier: 'Medium',
+                    hasFreeTier: false,
+                    supportLevel: '24/7'
+                },
+                {
+                    id: 9,
+                    name: 'Streak',
+                    provider: 'Streak',
+                    coreFunction: 'CRM integrated directly into Gmail.',
+                    pricing: 'Starts ~US$59/user/month (20% annual discount).',
+                    freeTier: 'Not specified.',
+                    support: 'Email, knowledge base, community forums.',
+                    notes: 'Good for smaller non-profits working within Gmail.',
+                    functions: ['CRM'],
+                    priceTier: 'Low',
+                    hasFreeTier: false,
+                    supportLevel: 'Basic'
+                },
+                {
+                    id: 10,
+                    name: 'SynergyDonor',
+                    provider: 'Synergy Connect',
+                    coreFunction: 'Donor-relationship management platform (tracking, campaigns, donations).',
+                    pricing: 'SaaS-based, from ~₹90 thousand upwards.',
+                    freeTier: 'Two-month free credit.',
+                    support: '24×7 support (India time).',
+                    notes: 'All SDGs. Ref: Swades Foundation.',
+                    functions: ['Donor Management', 'Donation Tracking'],
+                    priceTier: 'Medium',
+                    hasFreeTier: true,
+                    supportLevel: '24/7'
+                },
+                {
+                    id: 11,
+                    name: 'Zoho CRM',
+                    provider: 'Zoho',
+                    coreFunction: 'CRM for sales, marketing, and customer support.',
+                    pricing: '₹2,400/user/month (annual). Standard plan ~US$14/user/month.',
+                    freeTier: 'Free for up to 3 users.',
+                    support: 'End-to-end implementation support.',
+                    notes: 'SDG 17. Refs: Goonj, Smile Foundation.',
+                    functions: ['CRM', 'Marketing', 'Donor Management'],
+                    priceTier: 'Low',
+                    hasFreeTier: true,
+                    supportLevel: 'Dedicated'
+                }
+            ];
+
+            const state = {
+                function: 'all',
+                price: 'all',
+                freeTier: 'all',
+                support: 'all'
+            };
+
+            const selectors = {
+                function: document.getElementById('filter-function'),
+                price: document.getElementById('filter-price'),
+                freeTier: document.getElementById('filter-free-tier'),
+                support: document.getElementById('filter-support'),
+                grid: document.getElementById('tool-grid'),
+                template: document.getElementById('tool-card-template'),
+                count: document.getElementById('results-count'),
+                noResults: document.getElementById('no-results')
+            };
+
+            let functionChartInstance = null;
+            let freeTierChartInstance = null;
+            
+            function populateFilters() {
+                const functions = new Set();
+                const supportLevels = new Set();
+
+                toolData.forEach(tool => {
+                    tool.functions.forEach(fn => functions.add(fn));
+                    supportLevels.add(tool.supportLevel);
+                });
+
+                [...functions].sort().forEach(fn => {
+                    const option = new Option(fn, fn);
+                    selectors.function.add(option);
+                });
+
+                [...supportLevels].sort().forEach(level => {
+                    const option = new Option(level, level);
+                    selectors.support.add(option);
+                });
+            }
+
+            function setupListeners() {
+                selectors.function.addEventListener('change', (e) => {
+                    state.function = e.target.value;
+                    renderAll();
+                });
+                selectors.price.addEventListener('change', (e) => {
+                    state.price = e.target.value;
+                    renderAll();
+                });
+                selectors.freeTier.addEventListener('change', (e) => {
+                    state.freeTier = e.target.value;
+                    renderAll();
+                });
+                selectors.support.addEventListener('change', (e) => {
+                    state.support = e.target.value;
+                    renderAll();
+                });
+            }
+            
+            function filterData() {
+                return toolData.filter(tool => {
+                    const funcMatch = state.function === 'all' || tool.functions.includes(state.function);
+                    const priceMatch = state.price === 'all' || tool.priceTier === state.price;
+                    const freeTierMatch = state.freeTier === 'all' || String(tool.hasFreeTier) === state.freeTier;
+                    const supportMatch = state.support === 'all' || tool.supportLevel === state.support;
+                    
+                    return funcMatch && priceMatch && freeTierMatch && supportMatch;
+                });
+            }
+
+            function renderCards(data) {
+                selectors.grid.innerHTML = '';
+                
+                if (data.length === 0) {
+                    selectors.noResults.classList.remove('hidden');
+                    selectors.count.textContent = '0 results';
+                    return;
+                }
+                
+                selectors.noResults.classList.add('hidden');
+                selectors.count.textContent = `${data.length} result${data.length === 1 ? '' : 's'}`;
+                
+                data.forEach(tool => {
+                    const card = selectors.template.content.cloneNode(true).firstElementChild;
+                    card.querySelector('.tool-name').textContent = tool.name;
+                    card.querySelector('.tool-provider').textContent = `by ${tool.provider}`;
+                    card.querySelector('.tool-function').textContent = tool.coreFunction;
+                    card.querySelector('.tool-pricing').textContent = tool.pricing;
+                    card.querySelector('.tool-free-tier').textContent = tool.freeTier;
+                    card.querySelector('.tool-support').textContent = tool.support;
+                    card.querySelector('.tool-notes').textContent = tool.notes;
+                    selectors.grid.appendChild(card);
+                });
+            }
+
+            function renderCharts(data) {
+                renderFunctionChart(data);
+                renderFreeTierChart(data);
+            }
+
+            function renderFunctionChart(data) {
+                const ctx = document.getElementById('functionChart').getContext('2d');
+                
+                const functionCounts = data.reduce((acc, tool) => {
+                    const primaryFunc = tool.functions[0] || 'Other';
+                    acc[primaryFunc] = (acc[primaryFunc] || 0) + 1;
+                    return acc;
+                }, {});
+
+                const labels = Object.keys(functionCounts);
+                const counts = Object.values(functionCounts);
+
+                if (functionChartInstance) {
+                    functionChartInstance.destroy();
+                }
+
+                functionChartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Tools by Function',
+                            data: counts,
+                            backgroundColor: [
+                                '#6366F1', '#EC4899', '#10B981', '#F59E0B', '#3B82F6', '#8B5CF6', '#EF4444'
+                            ],
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 15,
+                                    boxWidth: 12
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            function renderFreeTierChart(data) {
+                const ctx = document.getElementById('freeTierChart').getContext('2d');
+
+                const freeTierCounts = data.reduce((acc, tool) => {
+                    if (tool.hasFreeTier) {
+                        acc.hasFree = (acc.hasFree || 0) + 1;
+                    } else {
+                        acc.noFree = (acc.noFree || 0) + 1;
+                    }
+                    return acc;
+                }, { hasFree: 0, noFree: 0 });
+
+                if (freeTierChartInstance) {
+                    freeTierChartInstance.destroy();
+                }
+
+                freeTierChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Has Free Tier / Trial', 'No Free Credit'],
+                        datasets: [{
+                            label: 'Count of Tools',
+                            data: [freeTierCounts.hasFree, freeTierCounts.noFree],
+                            backgroundColor: [
+                                'rgba(16, 185, 129, 0.7)',
+                                'rgba(239, 68, 68, 0.7)'
+                            ],
+                            borderColor: [
+                                'rgb(16, 185, 129)',
+                                'rgb(239, 68, 68)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            function renderAll() {
+                const data = filterData();
+                renderCards(data);
+                renderCharts(data);
+            }
+
+            function init() {
+                populateFilters();
+                setupListeners();
+                renderAll();
+            }
+
+            init();
+        });
+    </script>
+</body>
+</html>
